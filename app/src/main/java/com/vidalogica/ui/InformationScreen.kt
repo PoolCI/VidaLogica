@@ -30,53 +30,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-// Paleta de colores de alto contraste en escala de grises
+// --- Data Section ---
 private val darkBackground = Color(0xFF1A1A1A)
 private val cardColor = Color(0xFF2C2C2C)
 private val outlineColor = Color(0xFF444444)
 private val textColor = Color.White
 
 private data class ExampleTable(val headers: List<String>, val rows: List<List<String>>)
+private data class OperatorInfoData(val symbol: String, val name: String, val explanation: String, val exampleTable: ExampleTable)
+private data class ClassificationInfo(val name: String, val explanation: String, val example: String)
 
 private val operatorInfoList = listOf(
     OperatorInfoData("¬", "Negación (NO)", "Invierte el valor de verdad de una proposición.", 
-        ExampleTable(
-            headers = listOf("p", "¬p"), 
-            rows = listOf(listOf("V", "F"), listOf("F", "V"))
-        )
+        ExampleTable(headers = listOf("p", "¬p"), rows = listOf(listOf("V", "F"), listOf("F", "V")))
     ),
     OperatorInfoData("^", "Conjunción (Y)", "Es verdadera solo si ambas proposiciones son verdaderas.",
-        ExampleTable(
-            headers = listOf("p", "q", "p ^ q"),
-            rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "F"), listOf("F", "F", "F"))
-        )
+        ExampleTable(headers = listOf("p", "q", "p ^ q"), rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "F"), listOf("F", "F", "F")))
     ),
     OperatorInfoData("v", "Disyunción (O)", "Es verdadera si al menos una de las proposiciones es verdadera.",
-        ExampleTable(
-            headers = listOf("p", "q", "p v q"),
-            rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "V"), listOf("F", "V", "V"), listOf("F", "F", "F"))
-        )
+        ExampleTable(headers = listOf("p", "q", "p v q"), rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "V"), listOf("F", "V", "V"), listOf("F", "F", "F")))
     ),
     OperatorInfoData("->", "Implicación", "Es falsa solo si la primera proposición es verdadera y la segunda es falsa.",
-        ExampleTable(
-            headers = listOf("p", "q", "p -> q"),
-            rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "V"), listOf("F", "F", "V"))
-        )
+        ExampleTable(headers = listOf("p", "q", "p -> q"), rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "V"), listOf("F", "F", "V")))
     ),
     OperatorInfoData("<->", "Bicondicional", "Es verdadera solo si ambas proposiciones tienen el mismo valor de verdad.",
-        ExampleTable(
-            headers = listOf("p", "q", "p <-> q"),
-            rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "F"), listOf("F", "F", "V"))
-        )
+        ExampleTable(headers = listOf("p", "q", "p <-> q"), rows = listOf(listOf("V", "V", "V"), listOf("V", "F", "F"), listOf("F", "V", "F"), listOf("F", "F", "V")))
     )
 )
 
-private data class OperatorInfoData(val symbol: String, val name: String, val explanation: String, val exampleTable: ExampleTable)
+private val classificationInfoList = listOf(
+    ClassificationInfo("Tautología", "Una expresión es una tautología si el resultado final es siempre verdadero (V) para todas las combinaciones de sus variables. Es una verdad universal.", "Ejemplo: p v ¬p"),
+    ClassificationInfo("Contradicción", "Una expresión es una contradicción si el resultado final es siempre falso (F) para todas las combinaciones. Es una falsedad lógica.", "Ejemplo: p ^ ¬p"),
+    ClassificationInfo("Contingencia", "Una expresión es una contingencia si su resultado final contiene al menos un valor verdadero y uno falso. Su verdad depende de los valores de las variables.", "Ejemplo: p -> q")
+)
 
+
+// --- UI Section ---
 @Composable
 fun InformationScreen(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize().background(darkBackground)) {
@@ -85,7 +79,7 @@ fun InformationScreen(modifier: Modifier = Modifier) {
                 Text(
                     "Guía de Lógica Proposicional",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold, // Título en negrita
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp),
                     color = textColor
                 )
@@ -109,6 +103,18 @@ fun InformationScreen(modifier: Modifier = Modifier) {
             }
             items(operatorInfoList) { operatorInfo ->
                 ExpandableOperatorCard(operatorInfo = operatorInfo)
+            }
+            item {
+                Text(
+                    "Clasificación según el Resultado",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+                    color = textColor
+                )
+            }
+            items(classificationInfoList) { info ->
+                ClassificationInfoCard(info = info)
             }
         }
     }
@@ -198,6 +204,41 @@ private fun ExampleTruthTable(table: ExampleTable) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ClassificationInfoCard(info: ClassificationInfo, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, outlineColor)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = info.name,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+            Spacer(modifier = Modifier.padding(4.dp))
+            Text(
+                text = info.explanation,
+                style = MaterialTheme.typography.bodyLarge,
+                color = textColor.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.padding(4.dp))
+            Text(
+                text = info.example,
+                style = MaterialTheme.typography.bodyMedium,
+                fontStyle = FontStyle.Italic,
+                color = textColor.copy(alpha = 0.7f)
+            )
         }
     }
 }
