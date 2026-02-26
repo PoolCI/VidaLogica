@@ -23,14 +23,31 @@ class PropositionsViewModel : ViewModel() {
         onStatementChange(currentStatement + symbol)
     }
 
+    fun onDeleteClick() {
+        val current = _uiState.value.statement
+        if (current.isNotEmpty()) {
+            val next = when {
+                current.endsWith("<->") -> current.dropLast(3)
+                current.endsWith("->") -> current.dropLast(2)
+                else -> current.dropLast(1)
+            }
+            onStatementChange(next)
+        }
+    }
+
+    fun onClearAll() {
+        onStatementChange("")
+    }
+
     fun evaluateStatement() {
         val statement = _uiState.value.statement.trim()
         if (statement.isEmpty()) return
 
+        // Soporta p, q, r, s, t
         val propositions = statement.filter { it.isLetter() && it.lowercaseChar() != 'v' }.toSet().sorted()
 
         if (propositions.isEmpty()) {
-            _uiState.update { it.copy(result = "Introduce al menos una variable (p, q...)") }
+            _uiState.update { it.copy(result = "Introduce al menos una variable") }
             return
         }
 
@@ -38,14 +55,12 @@ class PropositionsViewModel : ViewModel() {
             val mainRpn = toRPN(statement)
             val subExpressions = getSubExpressions(mainRpn).distinct()
             
-            // Headers para el cálculo
             val calculationHeaders = (propositions.map { it.toString() } + subExpressions).distinct()
 
             val numPropositions = propositions.size
             val numRows = 1 shl numPropositions
             val fullTableRows = mutableListOf<List<Boolean>>()
 
-            // Generar filas de V a F
             for (i in numRows - 1 downTo 0) {
                 val propositionValues = propositions.associateWith { prop ->
                     val index = propositions.indexOf(prop)
@@ -64,7 +79,6 @@ class PropositionsViewModel : ViewModel() {
                 fullTableRows.add(rowResults)
             }
 
-            // Crear los headers para la UI, reemplazando el último por "Resultado Final"
             val displayHeaders = calculationHeaders.toMutableList()
             if (subExpressions.isNotEmpty()) {
                 val finalExpression = subExpressions.last()
@@ -115,34 +129,26 @@ class PropositionsViewModel : ViewModel() {
         for (token in tokens) {
             when {
                 token.matches(Regex("[a-zA-Z]")) && token.lowercase() != "v" -> output.add(token)
-                token == "v" && !stack.isEmpty() && stack.peek() != "(" && precedence.containsKey("v") -> handleOp("v", stack, output)
-                token == "v" -> if (precedence.containsKey(token)) handleOp(token, stack, output) else output.add(token)
                 token == "(" -> stack.push(token)
                 token == ")" -> {
                     while (stack.isNotEmpty() && stack.peek() != "(") output.add(stack.pop())
                     if (stack.isNotEmpty()) stack.pop() else throw Exception("Paréntesis disparejos")
                 }
-                precedence.containsKey(token) -> handleOp(token, stack, output)
-                else -> output.add(token)
+                precedence.containsKey(token) -> {
+                    while (stack.isNotEmpty() && stack.peek() != "(") {
+                        val top = stack.peek()
+                        val pTop = precedence[top] ?: -1
+                        val pOp = precedence[token] ?: -1
+                        if (pTop > pOp || (pTop == pOp && associativity[top] == "Left")) {
+                            output.add(stack.pop())
+                        } else break
+                    }
+                    stack.push(token)
+                }
             }
         }
-        while (stack.isNotEmpty()) {
-            if (stack.peek() == "(") throw Exception("Paréntesis sin cerrar")
-            output.add(stack.pop())
-        }
+        while (stack.isNotEmpty()) output.add(stack.pop())
         return output
-    }
-
-    private fun handleOp(op: String, stack: Stack<String>, output: MutableList<String>) {
-        while (stack.isNotEmpty() && stack.peek() != "(") {
-            val top = stack.peek()
-            val pTop = precedence[top] ?: -1
-            val pOp = precedence[op] ?: -1
-            if (pTop > pOp || (pTop == pOp && associativity[top] == "Left")) {
-                output.add(stack.pop())
-            } else break
-        }
-        stack.push(op)
     }
 
     private fun evaluateRPN(rpn: List<String>, values: Map<Char, Boolean>): Boolean {
