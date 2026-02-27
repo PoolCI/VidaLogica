@@ -95,7 +95,7 @@ fun PropositionsScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime > 500L) {
+                        if (currentTime - lastClickTime > 1000L) {
                             lastClickTime = currentTime
                             onNavigateBack()
                         }

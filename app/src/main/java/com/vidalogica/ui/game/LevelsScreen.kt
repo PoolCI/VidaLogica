@@ -46,11 +46,15 @@ private val levels = listOf(
     LevelInfo(1, "Completar la Tabla", "Te damos la expresión, tú rellenas la tabla de verdad."),
     LevelInfo(2, "Identificar el Símbolo", "Te damos la definición, tú eliges el operador correcto."),
     LevelInfo(3, "Resultado Final", "Te damos una tabla, tú seleccionas el resultado de la última columna."),
-    LevelInfo(4, "Construir la Expresión", "Te damos una tabla de verdad, tú construyes la fórmula que la genera."),
-    LevelInfo(5, "Clasificación de Proposiciones", "Te damos una expresión, tú decides si es Tautología, Contradicción o Contingencia.")
+    LevelInfo(4, "Construir la Expresión", "Te damos una tabla de verdad, tú construyes la fórmula."),
+    LevelInfo(5, "Clasificación", "Te damos una expresión, tú decides si es Tautología, Contradicción o Contingencia."),
+    LevelInfo(6, "Evaluación Directa", "Asignamos valores a p, q y r. ¿Cuál es el resultado de la expresión?"),
+    LevelInfo(7, "Equivalencia Lógica", "¿Son estas dos expresiones equivalentes en su resultado final?"),
+    LevelInfo(8, "Tabla de 3 Variables", "Completa la columna final de una tabla con 8 combinaciones posibles."),
+    LevelInfo(9, "Detectar el Tipo", "Analiza la columna de resultados para clasificar la proposición."),
+    LevelInfo(10, "El Gran Maestro", "Deduce la expresión compleja a partir de una tabla de verdad de 3 variables.")
 )
 
-// --- UI ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LevelsScreen(
@@ -63,33 +67,19 @@ fun LevelsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Niveles",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor
-                    )
-                },
+                title = { Text(text = "Niveles", fontWeight = FontWeight.Bold, color = textColor) },
                 navigationIcon = {
                     IconButton(onClick = {
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime > 500L) {
+                        if (currentTime - lastClickTime > 1000L) {
                             lastClickTime = currentTime
                             onNavigateBack()
                         }
                     }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver al inicio",
-                            tint = textColor
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás", tint = textColor)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = darkBackground,
-                    titleContentColor = textColor
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = darkBackground)
             )
         },
         containerColor = darkBackground
@@ -100,15 +90,6 @@ fun LevelsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
-                    Text(
-                        "Seleccionar Nivel",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                }
                 items(levels) { level ->
                     LevelButton(levelInfo = level, onClick = { 
                         val currentTime = System.currentTimeMillis()
@@ -129,24 +110,13 @@ private fun LevelButton(levelInfo: LevelInfo, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = cardColor,
-            contentColor = textColor
-        ),
+        colors = ButtonDefaults.buttonColors(containerColor = cardColor, contentColor = textColor),
         border = BorderStroke(1.dp, outlineColor),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+        elevation = ButtonDefaults.buttonElevation(4.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Nivel ${levelInfo.number}: ${levelInfo.title}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = levelInfo.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = textColor.copy(alpha = 0.8f)
-            )
+        Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
+            Text(text = "Nivel ${levelInfo.number}: ${levelInfo.title}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = levelInfo.description, fontSize = 14.sp, color = textColor.copy(0.7f))
         }
     }
 }
