@@ -15,7 +15,7 @@ class PropositionsViewModel : ViewModel() {
     private val associativity = mapOf("¬" to "Right", "^" to "Left", "v" to "Left", "->" to "Right", "<->" to "Left")
 
     fun onStatementChange(newStatement: String) {
-        _uiState.update { it.copy(statement = newStatement, truthTable = null, result = "") }
+        _uiState.update { it.copy(statement = newStatement, truthTable = null, result = "", steps = emptyList()) }
     }
 
     fun onSymbolClick(symbol: String) {
@@ -27,6 +27,10 @@ class PropositionsViewModel : ViewModel() {
         val statement = _uiState.value.statement.trim()
         if (statement.isEmpty()) return
 
+<<<<<<< Updated upstream
+=======
+        // Soporta p, q, r, s, t y cualquier otra letra excepto 'v' (operador)
+>>>>>>> Stashed changes
         val propositions = statement.filter { it.isLetter() && it.lowercaseChar() != 'v' }.toSet().sorted()
 
         if (propositions.isEmpty()) {
@@ -37,6 +41,7 @@ class PropositionsViewModel : ViewModel() {
         try {
             val mainRpn = toRPN(statement)
             val subExpressions = getSubExpressions(mainRpn).distinct()
+            val steps = generateSteps(mainRpn)
             
             // Headers para el cálculo
             val calculationHeaders = (propositions.map { it.toString() } + subExpressions).distinct()
@@ -75,7 +80,12 @@ class PropositionsViewModel : ViewModel() {
             }
 
             _uiState.update {
-                it.copy(truthTable = TruthTable(header = displayHeaders, rows = fullTableRows), result = "")
+                it.copy(
+                    truthTable = TruthTable(header = displayHeaders, rows = fullTableRows),
+                    result = "",
+                    steps = steps,
+                    propositions = propositions.map { it.toString() }
+                )
             }
 
         } catch (e: Exception) {
@@ -104,6 +114,83 @@ class PropositionsViewModel : ViewModel() {
             }
         }
         return subs
+    }
+
+    private fun generateSteps(rpn: List<String>): List<LogicalStep> {
+        val stack = Stack<String>()
+        val steps = mutableListOf<LogicalStep>()
+        var stepCount = 1
+
+        for (token in rpn) {
+            if (precedence.containsKey(token)) {
+                val step = when (token) {
+                    "¬" -> {
+                        val a = stack.pop()
+                        val expr = "¬$a"
+                        stack.push(expr)
+                        LogicalStep(
+                            stepCount++,
+                            expr,
+                            "Negación",
+                            "Invertimos el valor de '$a'. Si es Verdadero pasa a ser Falso, y viceversa."
+                        )
+                    }
+                    "^" -> {
+                        val b = stack.pop()
+                        val a = stack.pop()
+                        val expr = "($a ^ $b)"
+                        stack.push(expr)
+                        LogicalStep(
+                            stepCount++,
+                            expr,
+                            "Conjunción (AND)",
+                            "Evaluamos '$a' y '$b'. Solo es Verdadero si ambos componentes son Verdaderos."
+                        )
+                    }
+                    "v" -> {
+                        val b = stack.pop()
+                        val a = stack.pop()
+                        val expr = "($a v $b)"
+                        stack.push(expr)
+                        LogicalStep(
+                            stepCount++,
+                            expr,
+                            "Disyunción (OR)",
+                            "Evaluamos '$a' o '$b'. Es Falso únicamente si ambos componentes son Falsos."
+                        )
+                    }
+                    "->" -> {
+                        val b = stack.pop()
+                        val a = stack.pop()
+                        val expr = "($a -> $b)"
+                        stack.push(expr)
+                        LogicalStep(
+                            stepCount++,
+                            expr,
+                            "Condicional",
+                            "Si el antecedente '$a' es Verdadero y el consecuente '$b' es Falso, el resultado es Falso. En cualquier otro caso es Verdadero."
+                        )
+                    }
+                    "<->" -> {
+                        val b = stack.pop()
+                        val a = stack.pop()
+                        val expr = "($a <-> $b)"
+                        stack.push(expr)
+                        LogicalStep(
+                            stepCount++,
+                            expr,
+                            "Bicondicional",
+                            "Es Verdadero si y solo si '$a' y '$b' tienen el mismo valor de verdad."
+                        )
+                    }
+                    else -> null
+                }
+                step?.let { steps.add(it) }
+            } else {
+                stack.push(token)
+            }
+        }
+        return steps
     }
 
     private fun toRPN(infix: String): List<String> {
@@ -166,9 +253,17 @@ class PropositionsViewModel : ViewModel() {
 
 data class TruthTable(val header: List<String>, val rows: List<List<Boolean>>)
 
+data class LogicalStep(
+    val stepNumber: Int,
+    val expression: String,
+    val type: String,
+    val description: String
+)
+
 data class PropositionsUiState(
     val statement: String = "",
     val propositions: List<String> = emptyList(),
     val truthTable: TruthTable? = null,
-    val result: String = ""
+    val result: String = "",
+    val steps: List<LogicalStep> = emptyList()
 )
