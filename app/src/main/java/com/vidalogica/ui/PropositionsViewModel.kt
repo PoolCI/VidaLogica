@@ -1,5 +1,7 @@
 package com.vidalogica.ui
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,36 +16,76 @@ class PropositionsViewModel : ViewModel() {
     private val precedence = mapOf("¬" to 4, "^" to 3, "v" to 2, "->" to 1, "<->" to 0)
     private val associativity = mapOf("¬" to "Right", "^" to "Left", "v" to "Left", "->" to "Right", "<->" to "Left")
 
-    fun onStatementChange(newStatement: String) {
-        _uiState.update { it.copy(statement = newStatement, truthTable = null, result = "") }
+    fun onStatementChange(newValue: TextFieldValue) {
+        _uiState.update { 
+            if (it.statement.text != newValue.text) {
+                // Si el texto cambió, limpiamos los resultados previos
+                it.copy(statement = newValue, truthTable = null, result = "", steps = emptyList())
+            } else {
+                // Si solo cambió la selección (cursor), mantenemos los resultados
+                it.copy(statement = newValue)
+            }
+        }
     }
 
     fun onSymbolClick(symbol: String) {
-        val currentStatement = _uiState.value.statement
-        onStatementChange(currentStatement + symbol)
+        val currentTextField = _uiState.value.statement
+        val text = currentTextField.text
+        val selection = currentTextField.selection
+
+        val newText = text.substring(0, selection.start) + symbol + text.substring(selection.end)
+        val newCursorPosition = selection.start + symbol.length
+
+        onStatementChange(
+            TextFieldValue(
+                text = newText,
+                selection = TextRange(newCursorPosition)
+            )
+        )
     }
 
     fun onDeleteClick() {
-        val current = _uiState.value.statement
-        if (current.isNotEmpty()) {
-            val next = when {
-                current.endsWith("<->") -> current.dropLast(3)
-                current.endsWith("->") -> current.dropLast(2)
-                else -> current.dropLast(1)
+        val currentTextField = _uiState.value.statement
+        val text = currentTextField.text
+        val selection = currentTextField.selection
+
+        if (selection.start > 0 || selection.end > selection.start) {
+            val newText: String
+            val newCursorPosition: Int
+
+            if (selection.end > selection.start) {
+                // Borrar selección
+                newText = text.substring(0, selection.start) + text.substring(selection.end)
+                newCursorPosition = selection.start
+            } else {
+                // Borrar un caracter (o un operador como ->)
+                val textBefore = text.substring(0, selection.start)
+                val deletedLength = when {
+                    textBefore.endsWith("<->") -> 3
+                    textBefore.endsWith("->") -> 2
+                    else -> 1
+                }
+                newText = text.substring(0, selection.start - deletedLength) + text.substring(selection.start)
+                newCursorPosition = selection.start - deletedLength
             }
-            onStatementChange(next)
+
+            onStatementChange(
+                TextFieldValue(
+                    text = newText,
+                    selection = TextRange(newCursorPosition)
+                )
+            )
         }
     }
 
     fun onClearAll() {
-        onStatementChange("")
+        onStatementChange(TextFieldValue(""))
     }
 
     fun evaluateStatement() {
-        val statement = _uiState.value.statement.trim()
+        val statement = _uiState.value.statement.text.trim()
         if (statement.isEmpty()) return
 
-        // Soporta p, q, r, s, t
         val propositions = statement.filter { it.isLetter() && it.lowercaseChar() != 'v' }.toSet().sorted()
 
         if (propositions.isEmpty()) {
@@ -54,6 +96,7 @@ class PropositionsViewModel : ViewModel() {
         try {
             val mainRpn = toRPN(statement)
             val subExpressions = getSubExpressions(mainRpn).distinct()
+            val steps = generateSteps(mainRpn)
             
             val calculationHeaders = (propositions.map { it.toString() } + subExpressions).distinct()
 
@@ -89,7 +132,11 @@ class PropositionsViewModel : ViewModel() {
             }
 
             _uiState.update {
-                it.copy(truthTable = TruthTable(header = displayHeaders, rows = fullTableRows), result = "")
+                it.copy(
+                    truthTable = TruthTable(header = displayHeaders, rows = fullTableRows),
+                    result = "",
+                    steps = steps
+                )
             }
 
         } catch (e: Exception) {
@@ -118,6 +165,54 @@ class PropositionsViewModel : ViewModel() {
             }
         }
         return subs
+    }
+
+    private fun generateSteps(rpn: List<String>): List<LogicalStep> {
+        val stack = Stack<String>()
+        val steps = mutableListOf<LogicalStep>()
+        var stepCount = 1
+
+        for (token in rpn) {
+            if (precedence.containsKey(token)) {
+                val step = when (token) {
+                    "¬" -> {
+                        val a = stack.pop()
+                        val expr = "¬$a"
+                        stack.push(expr)
+                        LogicalStep(stepCount++, expr, "Negación", "Invertimos el valor de '$a'. Si es V pasa a ser F, y viceversa.")
+                    }
+                    "^" -> {
+                        val b = stack.pop(); val a = stack.pop()
+                        val expr = "($a ^ $b)"
+                        stack.push(expr)
+                        LogicalStep(stepCount++, expr, "Conjunción (AND)", "Es Verdadero solo si '$a' y '$b' son ambos Verdaderos.")
+                    }
+                    "v" -> {
+                        val b = stack.pop(); val a = stack.pop()
+                        val expr = "($a v $b)"
+                        stack.push(expr)
+                        LogicalStep(stepCount++, expr, "Disyunción (OR)", "Es Falso solo si '$a' y '$b' son ambos Falsos.")
+                    }
+                    "->" -> {
+                        val b = stack.pop(); val a = stack.pop()
+                        val expr = "($a -> $b)"
+                        stack.push(expr)
+                        LogicalStep(stepCount++, expr, "Condicional", "Es Falso solo cuando el antecedente '$a' es V y el consecuente '$b' es F.")
+                    }
+                    "<->" -> {
+                        val b = stack.pop(); val a = stack.pop()
+                        val expr = "($a <-> $b)"
+                        stack.push(expr)
+                        LogicalStep(stepCount++, expr, "Bicondicional", "Es Verdadero si '$a' y '$b' tienen el mismo valor de verdad.")
+                    }
+                    else -> null
+                }
+                step?.let { steps.add(it) }
+            } else {
+                stack.push(token)
+            }
+        }
+        return steps
     }
 
     private fun toRPN(infix: String): List<String> {
@@ -172,9 +267,12 @@ class PropositionsViewModel : ViewModel() {
 
 data class TruthTable(val header: List<String>, val rows: List<List<Boolean>>)
 
+data class LogicalStep(val stepNumber: Int, val expression: String, val type: String, val description: String)
+
 data class PropositionsUiState(
-    val statement: String = "",
+    val statement: TextFieldValue = TextFieldValue(""),
     val propositions: List<String> = emptyList(),
     val truthTable: TruthTable? = null,
-    val result: String = ""
+    val result: String = "",
+    val steps: List<LogicalStep> = emptyList()
 )

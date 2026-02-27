@@ -1,5 +1,9 @@
 package com.vidalogica.ui
 
+import android.graphics.Color as AndroidColor
+import android.text.InputType
+import android.view.Gravity
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,17 +23,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,10 +49,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 private val darkBackground = Color(0xFF1A1A1A)
@@ -56,6 +63,7 @@ private val componentColor = Color(0xFF2C2C2C)
 private val outlineColor = Color(0xFF444444)
 private val textColor = Color.White
 private val headerColor = Color(0xFF3C3C3C)
+private val accentColor = Color(0xFF64B5F6)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +75,7 @@ fun PropositionsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var lastClickTime by remember { mutableLongStateOf(0L) }
+    val resultScrollState = rememberScrollState()
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -121,25 +130,62 @@ fun PropositionsScreen(
                     .weight(1f)
                     .padding(horizontal = 16.dp)
             ) {
-                OutlinedTextField(
-                    value = uiState.statement,
-                    onValueChange = { },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Fórmula") },
-                    placeholder = { Text("Ej: (p ^ q) -> r", color = textColor.copy(alpha = 0.4f)) },
-                    readOnly = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = textColor,
-                        unfocusedTextColor = textColor,
-                        focusedContainerColor = componentColor,
-                        unfocusedContainerColor = componentColor,
-                        focusedBorderColor = outlineColor,
-                        unfocusedBorderColor = outlineColor,
-                        focusedLabelColor = textColor.copy(alpha = 0.7f),
-                        unfocusedLabelColor = textColor.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                )
+                // CAMPO DE TEXTO NATIVO (ESTILO SYMBOLAB)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(componentColor, RoundedCornerShape(8.dp))
+                        .border(1.dp, outlineColor, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        factory = { context ->
+                            AppCompatEditText(context).apply {
+                                // Configuración visual
+                                setBackgroundColor(AndroidColor.TRANSPARENT)
+                                setTextColor(AndroidColor.WHITE)
+                                textSize = 20f
+                                gravity = Gravity.CENTER_VERTICAL
+                                hint = "Ej: (p ^ q) -> r"
+                                setHintTextColor(AndroidColor.parseColor("#66FFFFFF"))
+                                
+                                // LA MAGIA: Bloquea teclado del sistema, pero mantiene cursor y selección
+                                showSoftInputOnFocus = false 
+                                
+                                // Permitir mover el cursor y seleccionar texto
+                                isCursorVisible = true
+                                isFocusable = true
+                                isFocusableInTouchMode = true
+                                
+                                // Listener para sincronizar la posición del cursor cuando el usuario toca
+                                setOnClickListener {
+                                    val selStart = selectionStart
+                                    val selEnd = selectionEnd
+                                    viewModel.onStatementChange(
+                                        viewModel.uiState.value.statement.copy(
+                                            selection = TextRange(selStart, selEnd)
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        update = { editText ->
+                            // Sincronizar texto desde el ViewModel
+                            if (editText.text.toString() != uiState.statement.text) {
+                                editText.setText(uiState.statement.text)
+                            }
+                            // Sincronizar posición del cursor desde el ViewModel
+                            val sel = uiState.statement.selection
+                            if (editText.selectionStart != sel.start || editText.selectionEnd != sel.end) {
+                                editText.setSelection(
+                                    sel.start.coerceIn(0, editText.length()),
+                                    sel.end.coerceIn(0, editText.length())
+                                )
+                            }
+                        }
+                    )
+                }
 
                 if (uiState.result.isNotEmpty()) {
                     Text(
@@ -150,17 +196,55 @@ fun PropositionsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                Box(modifier = Modifier.weight(1f)) {
-                    uiState.truthTable?.let { table ->
-                        TruthTableUI(table = table)
-                    } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Escribe una expresión y presiona EVALUAR", color = textColor.copy(alpha = 0.3f))
+                // Área de Scroll para Procedimiento y Tabla
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(resultScrollState)
+                ) {
+                    if (uiState.steps.isNotEmpty()) {
+                        Text(
+                            text = "Procedimiento Paso a Paso",
+                            color = textColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        
+                        uiState.steps.forEach { step ->
+                            LogicalStepItem(step = step)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
+
+                    val table = uiState.truthTable
+                    if (table != null) {
+                        Text(
+                            text = "Tabla de Verdad Completa",
+                            color = textColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        TruthTableUI(table = table)
+                    } else if (uiState.steps.isEmpty() && uiState.result.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Escribe una expresión y presiona EVALUAR", 
+                                color = textColor.copy(alpha = 0.3f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
+            // Teclado Fijo
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -188,7 +272,7 @@ fun PropositionsScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
                         ) {
-                            Icon(Icons.Filled.Backspace, contentDescription = "Borrar", tint = textColor)
+                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Borrar", tint = textColor)
                         }
 
                         Button(
@@ -216,6 +300,39 @@ fun PropositionsScreen(
 }
 
 @Composable
+private fun LogicalStepItem(step: LogicalStep) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = componentColor),
+        border = BorderStroke(1.dp, outlineColor),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Paso ${step.stepNumber}: ${step.type}",
+                color = accentColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Text(
+                text = step.expression,
+                color = textColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = outlineColor.copy(alpha = 0.5f))
+            Text(
+                text = step.description,
+                color = textColor.copy(alpha = 0.8f),
+                fontSize = 14.sp,
+                fontStyle = FontStyle.Italic
+            )
+        }
+    }
+}
+
+@Composable
 private fun KeyButton(text: String, modifier: Modifier = Modifier, color: Color = componentColor, onClick: () -> Unit) {
     Button(
         onClick = onClick,
@@ -231,13 +348,11 @@ private fun KeyButton(text: String, modifier: Modifier = Modifier, color: Color 
 @Composable
 private fun TruthTableUI(table: TruthTable, modifier: Modifier = Modifier) {
     val hScroll = rememberScrollState()
-    val vScroll = rememberScrollState()
 
     Box(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .horizontalScroll(hScroll)
-            .verticalScroll(vScroll)
     ) {
         Column(
             modifier = Modifier
